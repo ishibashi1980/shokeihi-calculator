@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>諸経費計算機</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f3f6fb;color:#172033;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}
+.app{max-width:520px;margin:auto;padding:18px 14px 28px}
+h1{text-align:center;font-size:24px;margin:8px 0 18px}
+.card{background:#fff;border-radius:18px;padding:18px;box-shadow:0 5px 20px #0000000d;margin-bottom:14px}
+label{display:block;font-size:14px;font-weight:700;margin-bottom:8px}
+input{width:100%;font-size:26px;text-align:right;padding:13px;border:2px solid #dbe2ec;border-radius:12px;outline:0}
+input:focus{border-color:#2563eb}
+.rate{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rate button,.keys button,.clear{border:0;border-radius:12px;padding:14px;font-size:19px;font-weight:700;background:#e9eef7;color:#24324a}
+.rate button.active{background:#2563eb;color:#fff}
+.result{display:grid;gap:9px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:10px 2px;border-bottom:1px solid #edf0f5}
+.row:last-child{border:0}
+.name{color:#596579}.value{font-weight:800;font-variant-numeric:tabular-nums}
+.total{font-size:21px;color:#2563eb}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.keys button{padding:16px;background:#eef2f7}
+.keys .op{background:#dbeafe;color:#1d4ed8}
+.keys .equal{background:#2563eb;color:#fff}
+.clear{width:100%;margin-top:10px;background:#eef2f7}
+.note{font-size:12px;color:#6b7280;line-height:1.6;margin-top:10px}
+</style>
+</head>
+<body>
+<main class="app">
+<h1>💰 諸経費計算機</h1>
+
+<section class="card">
+<label for="amount">全体の金額（小計）</label>
+<input id="amount" inputmode="decimal" autocomplete="off" placeholder="0">
+<div class="keys" aria-label="電卓">
+<button onclick="key('7')">7</button><button onclick="key('8')">8</button><button onclick="key('9')">9</button><button class="op" onclick="key('÷')">÷</button>
+<button onclick="key('4')">4</button><button onclick="key('5')">5</button><button onclick="key('6')">6</button><button class="op" onclick="key('×')">×</button>
+<button onclick="key('1')">1</button><button onclick="key('2')">2</button><button onclick="key('3')">3</button><button class="op" onclick="key('−')">−</button>
+<button onclick="key('0')">0</button><button onclick="key('00')">00</button><button onclick="key('.')">.</button><button class="op" onclick="key('+')">＋</button>
+<button class="clear" onclick="clearAll()">クリア</button><button class="equal" style="grid-column:span 3" onclick="calculateExpression()">＝ 計算</button>
+</div>
+<div class="note">電卓で計算した結果を、そのまま小計として使えます。</div>
+</section>
+
+<section class="card">
+<label>諸経費率</label>
+<div class="rate">
+<button id="r15" class="active" onclick="setRate(15)">15％</button>
+<button id="r25" onclick="setRate(25)">25％</button>
+</div>
+</section>
+
+<section class="card">
+<div class="result">
+<div class="row"><span class="name">A：小計</span><span class="value" id="a">¥0</span></div>
+<div class="row"><span class="name" id="blabel">B：15％</span><span class="value" id="b">¥0</span></div>
+<div class="row"><span class="name">C：1,000円単位で繰り上げ</span><span class="value" id="c">¥0</span></div>
+<div class="row"><span class="name">諸経費</span><span class="value" id="expense">¥0</span></div>
+<div class="row"><span class="name">中計</span><span class="value" id="subtotal">¥0</span></div>
+<div class="row"><span class="name">消費税（10％）</span><span class="value" id="tax">¥0</span></div>
+<div class="row total"><span>合計</span><span class="value" id="total">¥0</span></div>
+</div>
+<div class="note">Cは1,000円単位で切り上げ（ROUNDUP(B,-3)）。中計に消費税10％を加えて合計を表示します。</div>
+</section>
+</main>
+
+<script>
+let rate=15;
+const amount=document.getElementById('amount');
+
+function fmt(n){return '¥'+Math.round(n).toLocaleString('ja-JP')}
+function roundup1000(n){return Math.ceil(n/1000)*1000}
+function update(){
+  let a=parseFloat(amount.value.replace(/,/g,''))||0;
+  let b=rate===15?a*1.15:a/0.75;
+  let c=roundup1000(b);
+  let e=c-a;
+  let tax=c*0.10;
+  let total=c+tax;
+  document.getElementById('a').textContent=fmt(a);
+  document.getElementById('blabel').textContent='B：'+rate+'％';
+  document.getElementById('b').textContent=fmt(b);
+  document.getElementById('c').textContent=fmt(c);
+  document.getElementById('expense').textContent=fmt(e);
+  document.getElementById('subtotal').textContent=fmt(c);
+  document.getElementById('tax').textContent=fmt(tax);
+  document.getElementById('total').textContent=fmt(total);
+}
+function setRate(r){
+  rate=r;
+  document.getElementById('r15').classList.toggle('active',r===15);
+  document.getElementById('r25').classList.toggle('active',r===25);
+  update();
+}
+function key(k){
+  if(k==='×'||k==='÷'||k==='−'||k==='+'){
+    amount.value += k;
+  }else amount.value += k;
+  update();
+}
+function clearAll(){amount.value='';update()}
+function calculateExpression(){
+  let s=amount.value.replace(/,/g,'').replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-');
+  if(!/^[0-9+\-*/.() ]+$/.test(s)) return;
+  try{
+    let v=Function('"use strict";return ('+s+')')();
+    if(Number.isFinite(v)){amount.value=String(v);update()}
+  }catch(e){}
+}
+amount.addEventListener('input',update);
+update();
+</script>
+</body>
+</html>
