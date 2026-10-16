@@ -37,7 +37,7 @@ input:focus{border-color:#2563eb}
 
 <section class="card">
 <label for="amount">全体の金額（小計）</label>
-<input id="amount" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="例：1000+2000-1000" aria-describedby="input-note input-error">
+<input id="amount" type="text" inputmode="decimal" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="例：1000+2000-1000" aria-describedby="input-note input-error">
 <button class="clear" type="button" onclick="calculateExpression()">計算</button>
 <div class="note" id="input-note">式を入力して「計算」を押してください。＋、−、×、÷、括弧が使えます。</div>
 <div class="note error" id="input-error" role="status" aria-live="polite"></div>
@@ -147,4 +147,3 @@ update();
 </script>
 </body>
 </html>
-
