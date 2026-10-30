@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="theme-color" content="#173e46">
+  <title>換気風量測定</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18353b;
+      --muted: #64777b;
+      --line: #d8e2e2;
+      --paper: #fff;
+      --back: #f2f6f5;
+      --teal: #1b6870;
+      --teal-dark: #164e56;
+      --mint: #e6f2f0;
+      --red: #b4232e;
+      --red-bg: #fff0f0;
+      --green: #17643e;
+      --green-bg: #eaf6ef;
+      --shadow: 0 8px 24px rgba(26, 59, 64, .06);
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--back); }
+    body {
+      margin: 0;
+      padding: 0 14px max(24px, env(safe-area-inset-bottom));
+      color: var(--ink);
+      background: var(--back);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+      font-size: 16px;
+      line-height: 1.55;
+      -webkit-text-size-adjust: 100%;
+    }
+    body.locked { overflow: hidden; }
+    .page { width: 100%; max-width: 720px; margin: 0 auto; }
+    .topbar {
+      margin: 0 -14px 18px;
+      padding: 22px 18px 19px;
+      color: #fff;
+      background: var(--teal-dark);
+      border-bottom: 4px solid #77b8ac;
+    }
+    .topbar-inner { max-width: 684px; margin: 0 auto; }
+    .eyebrow { margin: 0 0 4px; color: #b8d9d3; font-size: 12px; font-weight: 700; letter-spacing: .12em; }
+    h1 { margin: 0; font-size: 25px; line-height: 1.25; letter-spacing: .03em; }
+    .top-note { margin: 9px 0 0; color: #d6e9e6; font-size: 13px; }
+    .local-state { display: inline-flex; gap: 7px; align-items: center; margin-top: 12px; padding: 5px 10px; color: #eafffa; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); border-radius: 999px; font-size: 12px; }
+    .local-dot { width: 7px; height: 7px; background: #9de0c5; border-radius: 50%; }
+    .card { margin: 0 0 14px; padding: 18px; background: var(--paper); border: 1px solid var(--line); border-radius: 15px; box-shadow: var(--shadow); }
+    .section-head { display: flex; align-items: center; gap: 10px; margin: 0 0 15px; }
+    .section-number { display: grid; width: 27px; height: 27px; place-items: center; flex: 0 0 27px; color: #fff; background: var(--teal); border-radius: 9px; font-size: 13px; font-weight: 800; }
+    h2 { margin: 0; font-size: 17px; letter-spacing: .02em; }
+    .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+    .field { min-width: 0; }
+    .field.full { grid-column: 1 / -1; }
+    label { display: block; margin-bottom: 6px; color: #405c61; font-size: 13px; font-weight: 700; }
+    .unit { color: var(--muted); font-size: 12px; font-weight: 500; }
+    input, select {
+      display: block;
+      width: 100%;
+      min-height: 50px;
+      padding: 11px 13px;
+      color: var(--ink);
+      background: #fbfdfc;
+      border: 1px solid #cbd9d9;
+      border-radius: 10px;
+      outline: none;
+      font: inherit;
+      font-size: 17px;
+      transition: border-color .15s, box-shadow .15s, background .15s;
+    }
+    select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #557479 50%), linear-gradient(135deg, #557479 50%, transparent 50%); background-position: calc(100% - 19px) 21px, calc(100% - 13px) 21px; background-size: 6px 6px, 6px 6px; background-repeat: no-repeat; }
+    input:focus, select:focus { border-color: #36838a; box-shadow: 0 0 0 3px rgba(45, 127, 132, .13); background: #fff; }
+    input::placeholder { color: #a5b4b5; }
+    .hint { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .hint.error { color: var(--red); font-weight: 600; }
+    .area-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .area-mode { color: #2a7774; font-size: 11px; font-weight: 800; white-space: nowrap; }
+    .text-button { min-height: 36px; margin-top: 7px; padding: 6px 10px; color: var(--teal-dark); background: #e9f3f1; border: 0; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 800; }
+    .speed-intro { margin: -7px 0 12px; color: var(--muted); font-size: 12px; }
+    .speed-list { display: grid; gap: 9px; }
+    .speed-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 9px; align-items: center; }
+    .speed-index { display: grid; width: 31px; height: 31px; place-items: center; color: #2f6c70; background: var(--mint); border-radius: 50%; font-size: 13px; font-weight: 800; }
+    .speed-row input { min-height: 48px; }
+    .speed-unit { color: var(--muted); font-size: 12px; }
+    .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .result-tile { min-height: 90px; padding: 12px 13px; background: #f4f8f7; border: 1px solid #e0eae8; border-radius: 12px; }
+    .result-label { display: block; color: #587075; font-size: 12px; font-weight: 700; }
+    .result-value { display: block; margin-top: 5px; font-size: 21px; line-height: 1.25; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; overflow-wrap: anywhere; }
+    .result-unit { margin-left: 4px; color: #587075; font-size: 11px; font-weight: 600; letter-spacing: 0; }
+    .flow-tile { grid-column: 1 / -1; padding: 15px; background: #e9f3f1; border-color: #c9dfdb; }
+    .flow-tile .result-value { color: var(--teal-dark); font-size: clamp(29px, 8vw, 38px); }
+    .flow-tile.low { background: var(--red-bg); border-color: #efb9bd; }
+    .flow-tile.low .result-value { color: var(--red); }
+    .status-message { display: none; margin-top: 11px; padding: 10px 12px; border-radius: 10px; font-size: 14px; font-weight: 800; }
+    .status-message.show { display: block; }
+    .status-message.low { color: #9b1722; background: #ffe1e3; }
+    .status-message.ok { color: var(--green); background: var(--green-bg); }
+    .formula-note { margin: 12px 0 0; padding: 10px 11px; color: #526b70; background: #f7f9f8; border-radius: 9px; font-size: 12px; }
+    .clear-button { width: 100%; min-height: 48px; margin-top: 14px; color: #34565b; background: #eaf0ef; border: 0; border-radius: 11px; font: inherit; font-size: 14px; font-weight: 800; }
+    .footer-note { margin: 18px 6px 4px; color: #718488; text-align: center; font-size: 11px; }
+    .popup-backdrop { position: fixed; z-index: 20; inset: 0; display: none; align-items: center; justify-content: center; padding: 18px; background: rgba(13, 36, 41, .56); }
+    .popup-backdrop.visible { display: flex; }
+    .popup-card { width: min(100%, 430px); padding: 22px 19px 18px; background: #fff; border: 1px solid #d8e2e2; border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,.22); text-align: center; animation: pop-in .18s ease-out; }
+    @keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .popup-kicker { margin: 0 0 5px; color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
+    .popup-card h2 { margin: 0 0 14px; font-size: 20px; }
+    .popup-flow-label { color: #587075; font-size: 13px; font-weight: 700; }
+    .popup-flow { margin: 2px 0 8px; color: var(--teal-dark); font-size: clamp(33px, 10vw, 44px); line-height: 1.15; font-weight: 900; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .popup-flow span { margin-left: 5px; color: #587075; font-size: 14px; font-weight: 700; }
+    .popup-status { margin: 12px 0 17px; padding: 12px 10px; color: var(--green); background: var(--green-bg); border-radius: 11px; font-size: 16px; font-weight: 900; }
+    .popup-status.low { color: var(--red); background: #ffe1e3; }
+    .popup-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .popup-close, .popup-reset { width: 100%; min-height: 48px; border: 0; border-radius: 11px; font: inherit; font-size: 15px; font-weight: 800; }
+    .popup-close { color: #fff; background: var(--teal); }
+    .popup-reset { color: #9b1722; background: #ffe7e8; }
+    @media (max-width: 390px) {
+      body { padding-right: 10px; padding-left: 10px; }
+      .topbar { margin-right: -10px; margin-left: -10px; padding-right: 15px; padding-left: 15px; }
+      .card { padding: 15px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <p class="eyebrow">FIELD MEASUREMENT</p>
+      <h1>換気風量測定</h1>
+      <p class="top-note">入力すると必要換気量と測定風量を自動計算します。</p>
+      <span class="local-state"><span class="local-dot"></span>入力内容はこの端末に保存</span>
+    </div>
+  </header>
+
+  <main class="page">
+    <form id="measureForm" autocomplete="off" novalidate>
+      <section class="card">
+        <div class="section-head"><span class="section-number">1</span><h2>換気条件</h2></div>
+        <div class="fields">
+          <div class="field">
+            <label for="heat">発熱量 <span class="unit">(kW)</span></label>
+            <input id="heat" type="text" inputmode="decimal" placeholder="例：3.5" autocapitalize="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="type">換気型式</label>
+            <select id="type">
+              <option value="40">40</option>
+              <option value="30" selected>30（標準）</option>
+              <option value="20">20</option>
+              <option value="2">2</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-head"><span class="section-number">2</span><h2>開口部</h2></div>
+        <div class="fields">
+          <div class="field">
+            <label for="width">開口部タテ <span class="unit">(cm)</span></label>
+            <input id="width" type="text" inputmode="decimal" placeholder="例：31" autocapitalize="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="height">開口部ヨコ <span class="unit">(cm)</span></label>
+            <input id="height" type="text" inputmode="decimal" placeholder="例：29" autocapitalize="off" spellcheck="false">
+          </div>
+          <div class="field full">
+            <div class="area-label-row">
+              <label for="areaDirect">開口部面積 <span class="unit">(㎡)</span></label>
+              <span id="areaMode" class="area-mode">タテ・ヨコから自動表示</span>
+            </div>
+            <input id="areaDirect" type="text" inputmode="decimal" placeholder="タテ・ヨコ入力で自動表示／直接入力も可" autocapitalize="off" spellcheck="false">
+            <p id="areaHint" class="hint">タテとヨコを入力すると面積がすぐに表示されます。面積欄へ直接入力もできます。</p>
+            <button id="areaAutoButton" class="text-button" type="button" hidden>タテ・ヨコから再計算</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-head"><span class="section-number">3</span><h2>実測風速 <span class="unit">(m/s)・5点</span></h2></div>
+        <p class="speed-intro">Excel表の「測定風速」欄にあたります。5点すべて入力すると結果ポップアップが表示されます。</p>
+        <div class="speed-list">
+          <div class="speed-row"><span class="speed-index">1</span><input id="speed1" type="text" inputmode="decimal" aria-label="実測風速 1点目" placeholder="1点目" autocapitalize="off" spellcheck="false"><span class="speed-unit">m/s</span></div>
+          <div class="speed-row"><span class="speed-index">2</span><input id="speed2" type="text" inputmode="decimal" aria-label="実測風速 2点目" placeholder="2点目" autocapitalize="off" spellcheck="false"><span class="speed-unit">m/s</span></div>
+          <div class="speed-row"><span class="speed-index">3</span><input id="speed3" type="text" inputmode="decimal" aria-label="実測風速 3点目" placeholder="3点目" autocapitalize="off" spellcheck="false"><span class="speed-unit">m/s</span></div>
+          <div class="speed-row"><span class="speed-index">4</span><input id="speed4" type="text" inputmode="decimal" aria-label="実測風速 4点目" placeholder="4点目" autocapitalize="off" spellcheck="false"><span class="speed-unit">m/s</span></div>
+          <div class="speed-row"><span class="speed-index">5</span><input id="speed5" type="text" inputmode="decimal" aria-label="実測風速 5点目" placeholder="5点目" autocapitalize="off" spellcheck="false"><span class="speed-unit">m/s</span></div>
+        </div>
+      </section>
+
+      <section class="card" aria-live="polite">
+        <div class="section-head"><span class="section-number">4</span><h2>自動計算結果</h2></div>
+        <div class="result-grid">
+          <div class="result-tile">
+            <span class="result-label">必要有効換気量</span>
+            <strong id="requiredResult" class="result-value">—<span class="result-unit">m³/h</span></strong>
+          </div>
+          <div class="result-tile">
+            <span class="result-label">開口面積</span>
+            <strong id="areaResult" class="result-value">—<span class="result-unit">㎡</span></strong>
+          </div>
+          <div class="result-tile">
+            <span class="result-label">5点の平均風速</span>
+            <strong id="averageResult" class="result-value">—<span class="result-unit">m/s</span></strong>
+          </div>
+          <div class="result-tile flow-tile" id="flowTile">
+            <span class="result-label">測定風量</span>
+            <strong id="measuredResult" class="result-value">—<span class="result-unit">m³/h</span></strong>
+          </div>
+        </div>
+        <div id="statusMessage" class="status-message" role="status"></div>
+        <p class="formula-note">計算式：必要有効換気量 ＝ 発熱量 × 0.93 × 換気型式 ／ 測定風量 ＝ 3,600 × 開口面積 × 平均風速</p>
+        <button id="clearButton" class="clear-button" type="button">入力をクリア</button>
+      </section>
+    </form>
+    <p class="footer-note">測定値はクラウドへ送信せず、この端末のブラウザにのみ一時保存します。</p>
+  </main>
+
+  <div id="resultPopup" class="popup-backdrop" aria-hidden="true">
+    <section class="popup-card" role="dialog" aria-modal="true" aria-labelledby="popupTitle">
+      <p class="popup-kicker">測定完了</p>
+      <h2 id="popupTitle">測定結果</h2>
+      <div class="popup-flow-label">測定風量</div>
+      <div id="popupFlow" class="popup-flow">— <span>m³/h</span></div>
+      <div id="popupStatus" class="popup-status">必要有効換気量以上です</div>
+      <div class="popup-actions">
+        <button id="popupOk" class="popup-close" type="button">OK</button>
+        <button id="popupReset" class="popup-reset" type="button">リセット</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      var fieldIds = ['heat', 'type', 'width', 'height', 'areaDirect', 'speed1', 'speed2', 'speed3', 'speed4', 'speed5'];
+      var draftKey = 'ventFlowMeasurementDraftV2';
+      var areaMode = 'auto';
+      var wasReady = false;
+      var popupIsOpen = false;
+
+      function byId(id) { return document.getElementById(id); }
+      function fieldValue(id) { return byId(id).value.trim(); }
+      function parseNumber(input) {
+        var text = String(input == null ? '' : input).trim();
+        if (!text) return null;
+        text = text
+          .replace(/[０-９]/g, function (character) { return String.fromCharCode(character.charCodeAt(0) - 65248); })
+          .replace(/[．。]/g, '.')
+          .replace(/[，,\s]/g, '');
+        if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) return NaN;
+        var number = Number(text);
+        return isFinite(number) ? number : NaN;
+      }
+      function rawDecimal(number) {
+        return String(Number(number.toFixed(10)));
+      }
+      function syncAreaFromDimensions() {
+        var width = parseNumber(fieldValue('width'));
+        var height = parseNumber(fieldValue('height'));
+        var areaField = byId('areaDirect');
+        if (areaMode !== 'auto') return;
+        if (width !== null && !isNaN(width) && height !== null && !isNaN(height)) {
+          areaField.value = rawDecimal(width * height / 10000);
+          areaField.dataset.autoValue = 'true';
+          byId('areaMode').textContent = '寸法から自動表示';
+          byId('areaAutoButton').hidden = true;
+        } else if (areaField.dataset.autoValue === 'true') {
+          areaField.value = '';
+          delete areaField.dataset.autoValue;
+          byId('areaMode').textContent = 'タテ・ヨコから自動表示';
+          byId('areaAutoButton').hidden = true;
+        }
+        saveDraft();
+      }
+      function readRecord() {
+        return {
+          heat: fieldValue('heat'),
+          type: fieldValue('type') || '30',
+          width: fieldValue('width'),
+          height: fieldValue('height'),
+          areaDirect: fieldValue('areaDirect'),
+          areaMode: areaMode,
+          speeds: [fieldValue('speed1'), fieldValue('speed2'), fieldValue('speed3'), fieldValue('speed4'), fieldValue('speed5')]
+        };
+      }
+      function calculate(record) {
+        var heat = parseNumber(record.heat);
+        var type = Number(record.type);
+        var required = heat !== null && !isNaN(heat) && heat >= 0 && [40, 30, 20, 2].indexOf(type) >= 0
+          ? heat * 0.93 * type
+          : null;
+
+        var area = parseNumber(record.areaDirect);
+        if (area === null || isNaN(area) || area < 0) area = null;
+
+        var parsedSpeeds = record.speeds.map(parseNumber);
+        var speedError = parsedSpeeds.some(function (item) { return item !== null && (isNaN(item) || item < 0); });
+        var validSpeeds = parsedSpeeds.filter(function (item) { return item !== null && !isNaN(item) && item >= 0; });
+        var average = validSpeeds.length && !speedError
+          ? validSpeeds.reduce(function (sum, item) { return sum + item; }, 0) / validSpeeds.length
+          : null;
+        var measured = area !== null && average !== null ? 3600 * area * average : null;
+        var allFiveEntered = record.speeds.every(function (item) { return String(item || '').trim() !== ''; });
+        var ready = required !== null && area !== null && average !== null && allFiveEntered && !speedError;
+        return {
+          required: required,
+          area: area,
+          average: average,
+          measured: measured,
+          speedError: speedError,
+          ready: ready
+        };
+      }
+      function formatted(number, digits) {
+        if (number === null || !isFinite(number)) return '—';
+        return new Intl.NumberFormat('ja-JP', { maximumFractionDigits: digits, minimumFractionDigits: 0 }).format(number);
+      }
+      function setResult(id, number, digits, unit) {
+        var node = byId(id);
+        node.textContent = formatted(number, digits);
+        var unitNode = document.createElement('span');
+        unitNode.className = 'result-unit';
+        unitNode.textContent = unit;
+        node.appendChild(unitNode);
+      }
+      function setPopup(result) {
+        byId('popupFlow').textContent = formatted(result.measured, 2);
+        var unit = document.createElement('span');
+        unit.textContent = 'm³/h';
+        byId('popupFlow').appendChild(unit);
+        var status = byId('popupStatus');
+        status.classList.remove('low');
+        if (result.measured < result.required) {
+          status.textContent = '必要有効換気量以下です';
+          status.classList.add('low');
+        } else {
+          status.textContent = '必要有効換気量以上です';
+        }
+      }
+      function openPopup(result) {
+        setPopup(result);
+        byId('resultPopup').classList.add('visible');
+        byId('resultPopup').setAttribute('aria-hidden', 'false');
+        document.body.classList.add('locked');
+        popupIsOpen = true;
+      }
+      function closePopup() {
+        byId('resultPopup').classList.remove('visible');
+        byId('resultPopup').setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('locked');
+        popupIsOpen = false;
+      }
+      function renderCalculations(showNewResultPopup) {
+        var result = calculate(readRecord());
+        setResult('requiredResult', result.required, 2, 'm³/h');
+        setResult('areaResult', result.area, 4, '㎡');
+        setResult('averageResult', result.average, 2, 'm/s');
+        setResult('measuredResult', result.measured, 2, 'm³/h');
+
+        var areaField = fieldValue('areaDirect');
+        var areaValue = parseNumber(areaField);
+        var areaHint = byId('areaHint');
+        areaHint.className = 'hint';
+        if (areaField && (areaValue === null || isNaN(areaValue) || areaValue < 0)) {
+          areaHint.textContent = '面積は0以上の数値で入力してください。';
+          areaHint.classList.add('error');
+        } else if (areaMode === 'manual' && areaField) {
+          areaHint.textContent = '直接入力した面積を使用中です。タテ・ヨコの値に戻すときは「タテ・ヨコから再計算」を押してください。';
+        } else if (areaField) {
+          areaHint.textContent = 'タテ×ヨコ÷10,000で自動計算しています。面積欄を編集すると直接入力に切り替わります。';
+        } else {
+          areaHint.textContent = 'タテとヨコを入力すると面積がすぐに表示されます。面積欄へ直接入力もできます。';
+        }
+
+        var flowTile = byId('flowTile');
+        var status = byId('statusMessage');
+        flowTile.classList.remove('low');
+        status.className = 'status-message';
+        status.textContent = '';
+        if (result.speedError) {
+          status.textContent = '実測風速に数値以外、または負の値があります。入力を確認してください。';
+          status.className = 'status-message show low';
+        } else if (result.required !== null && result.measured !== null) {
+          if (result.measured < result.required) {
+            flowTile.classList.add('low');
+            status.textContent = '必要有効換気量を下回っています';
+            status.className = 'status-message show low';
+          } else {
+            status.textContent = '必要有効換気量以上です';
+            status.className = 'status-message show ok';
+          }
+        }
+
+        if (popupIsOpen && result.ready) setPopup(result);
+        if (!result.ready && popupIsOpen) closePopup();
+        if (result.ready && !wasReady && showNewResultPopup) openPopup(result);
+        wasReady = result.ready;
+      }
+      function saveDraft() {
+        try { localStorage.setItem(draftKey, JSON.stringify(readRecord())); } catch (error) {}
+      }
+      function restoreDraft() {
+        try {
+          var draft = JSON.parse(localStorage.getItem(draftKey) || 'null');
+          if (!draft) return;
+          ['heat', 'type', 'width', 'height', 'areaDirect'].forEach(function (id) {
+            if (draft[id] !== undefined && byId(id)) byId(id).value = draft[id];
+          });
+          (draft.speeds || []).forEach(function (speed, index) {
+            if (index < 5) byId('speed' + (index + 1)).value = speed || '';
+          });
+          areaMode = draft.areaMode === 'manual' ? 'manual' : 'auto';
+          if (areaMode === 'manual') {
+            byId('areaMode').textContent = '直接入力';
+            byId('areaAutoButton').hidden = false;
+          } else {
+            syncAreaFromDimensions();
+          }
+        } catch (error) {}
+      }
+      function resetAreaToAuto() {
+        areaMode = 'auto';
+        delete byId('areaDirect').dataset.autoValue;
+        syncAreaFromDimensions();
+        renderCalculations(true);
+        saveDraft();
+      }
+      function clearInputs(skipConfirm) {
+        if (!skipConfirm && !window.confirm('入力中の内容を消去しますか？')) return;
+        closePopup();
+        byId('measureForm').reset();
+        byId('type').value = '30';
+        areaMode = 'auto';
+        wasReady = false;
+        delete byId('areaDirect').dataset.autoValue;
+        byId('areaMode').textContent = 'タテ・ヨコから自動表示';
+        byId('areaAutoButton').hidden = true;
+        try { localStorage.removeItem(draftKey); } catch (error) {}
+        renderCalculations(false);
+      }
+
+      ['heat', 'type', 'width', 'height', 'speed1', 'speed2', 'speed3', 'speed4', 'speed5'].forEach(function (id) {
+        byId(id).addEventListener('input', function () {
+          if (id === 'width' || id === 'height') syncAreaFromDimensions();
+          renderCalculations(true);
+          saveDraft();
+        });
+        byId(id).addEventListener('change', function () {
+          if (id === 'width' || id === 'height') syncAreaFromDimensions();
+          renderCalculations(true);
+          saveDraft();
+        });
+      });
+      byId('areaDirect').addEventListener('input', function () {
+        areaMode = 'manual';
+        byId('areaMode').textContent = '直接入力';
+        byId('areaAutoButton').hidden = false;
+        delete byId('areaDirect').dataset.autoValue;
+        renderCalculations(true);
+        saveDraft();
+      });
+      byId('areaDirect').addEventListener('change', function () {
+        renderCalculations(true);
+        saveDraft();
+      });
+      byId('areaAutoButton').addEventListener('click', resetAreaToAuto);
+      byId('clearButton').addEventListener('click', clearInputs);
+      byId('popupOk').addEventListener('click', closePopup);
+      byId('popupReset').addEventListener('click', function () { clearInputs(true); });
+      byId('resultPopup').addEventListener('click', function (event) {
+        if (event.target === byId('resultPopup')) closePopup();
+      });
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && popupIsOpen) closePopup();
+      });
+
+      restoreDraft();
+      renderCalculations(false);
+      wasReady = calculate(readRecord()).ready;
+    })();
+  </script>
+</body>
+</html>
