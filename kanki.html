@@ -113,12 +113,16 @@
     .area-box, .average-box { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 11px; padding: 12px; background: #f3f8f7; border-radius: 10px; }
     .area-box span, .average-box span { color: #587075; font-size: 14px; font-weight: 700; }
     .area-box strong, .average-box strong { color: var(--teal-dark); font-size: 19px; font-variant-numeric: tabular-nums; }
+    .area-box input { flex: 1; min-width: 0; min-height: 48px; padding: 10px 12px; background: #fff; border: 1px solid var(--line); border-radius: 10px; font-size: 17px; }
+    .area-edit-note { margin: 7px 1px 0; color: var(--muted); font-size: 13px; }
+    .area-auto-button { width: 100%; min-height: 44px; margin-top: 8px; color: var(--teal-dark); background: #e9f3f1; font-size: 14px; }
     .speed-list { display: grid; gap: 9px; }
     .speed-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 9px; align-items: center; }
     .speed-index { display: grid; width: 30px; height: 30px; place-items: center; color: #2f6c70; background: var(--mint); border-radius: 50%; font-size: 14px; font-weight: 800; }
     .speed-row input { min-height: 54px; }
     .speed-unit { color: var(--muted); font-size: 14px; }
     .measure-button { width: 100%; margin-top: 14px; }
+    .add-fan-inline { width: 100%; margin-top: 8px; }
     .fan-note { min-height: 1.5em; margin: 8px 1px 0; color: var(--muted); font-size: 13px; }
     .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .summary-tile { min-height: 90px; padding: 13px; background: #f4f8f7; border: 1px solid #e0eae8; border-radius: 12px; }
@@ -197,7 +201,7 @@
         </div>
       </div>
       <div id="summaryStatus" class="summary-status" role="status"></div>
-      <p class="formula-note">必要有効換気量 ＝ 各発熱量 × 0.93 × 換気型式の合計 ／ 各換気扇の測定風量 ＝ 3,600 × 開口面積 × 5点の平均風速</p>
+      <p class="formula-note">必要有効換気量 ＝ 各発熱量 × 0.93 × 換気型式の合計 ／ 各換気扇の測定風量 ＝ 3,600 × 開口面積 × 入力した点の平均風速</p>
       <button id="clearButton" class="clear-button" type="button">全データをリセット</button>
     </section>
     <p class="footer-note">測定値はクラウドへ送信せず、この端末のブラウザに一時保存します。</p>
@@ -227,7 +231,7 @@
       var appState = createBlankState();
 
       function createBlankFan() {
-        return { shape: '', diameter: '', height: '', width: '', speeds: ['', '', '', '', ''], measuredFlow: null };
+        return { shape: '', diameter: '', height: '', width: '', areaDirect: '', areaMode: 'auto', speeds: ['', '', '', '', ''], measuredFlow: null };
       }
       function createBlankState() {
         return { conditions: [{ heat: '', type: '30' }], fans: [createBlankFan()] };
@@ -315,21 +319,47 @@
             area = radiusCm * radiusCm * 3.14 / 10000;
           }
         } else if (fan.shape === 'rectangle') {
-          var height = parseNumber(fan.height);
-          var width = parseNumber(fan.width);
-          if (height !== null && !isNaN(height) && height >= 0 && width !== null && !isNaN(width) && width >= 0) {
-            area = height * width / 10000;
+          if (fan.areaMode === 'manual') {
+            var directArea = parseNumber(fan.areaDirect);
+            if (directArea !== null && !isNaN(directArea) && directArea >= 0) area = directArea;
+          } else {
+            var height = parseNumber(fan.height);
+            var width = parseNumber(fan.width);
+            if (height !== null && !isNaN(height) && height >= 0 && width !== null && !isNaN(width) && width >= 0) {
+              area = height * width / 10000;
+            }
           }
         }
-        var speedValues = fan.speeds.map(parseNumber);
-        var speedsReady = speedValues.length === 5 && speedValues.every(function (speed) {
-          return speed !== null && !isNaN(speed) && speed >= 0;
+        var enteredSpeeds = fan.speeds.map(function (raw) {
+          var value = parseNumber(raw);
+          return { raw: String(raw == null ? '' : raw).trim(), value: value };
+        }).filter(function (entry) { return entry.raw !== ''; });
+        var speedError = enteredSpeeds.some(function (entry) {
+          return entry.value === null || isNaN(entry.value) || entry.value < 0;
         });
-        var average = speedsReady
-          ? speedValues.reduce(function (sum, speed) { return sum + speed; }, 0) / speedValues.length
+        var validSpeeds = enteredSpeeds.filter(function (entry) { return entry.value !== null && !isNaN(entry.value) && entry.value >= 0; });
+        var average = enteredSpeeds.length > 0 && !speedError
+          ? validSpeeds.reduce(function (sum, entry) { return sum + entry.value; }, 0) / validSpeeds.length
           : null;
         var flow = area !== null && average !== null ? area * average * 3600 : null;
-        return { area: area, average: average, flow: flow, ready: area !== null && average !== null };
+        return { area: area, average: average, flow: flow, speedCount: validSpeeds.length, speedError: speedError, ready: area !== null && average !== null };
+      }
+      function compactDecimal(number) {
+        var value = Number(number).toFixed(6);
+        return value.indexOf('.') >= 0 ? value.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '') : value;
+      }
+      function syncRectangleArea(index) {
+        var fan = appState.fans[index];
+        if (!fan || fan.shape !== 'rectangle' || fan.areaMode === 'manual') return;
+        var height = parseNumber(fan.height);
+        var width = parseNumber(fan.width);
+        if (height !== null && !isNaN(height) && height >= 0 && width !== null && !isNaN(width) && width >= 0) {
+          fan.areaDirect = compactDecimal(height * width / 10000);
+        } else {
+          fan.areaDirect = '';
+        }
+        var input = document.querySelector('[data-fan-card="' + index + '"] [data-fan-area-entry]');
+        if (input) input.value = fan.areaDirect;
       }
       function renderConditions() {
         var container = document.getElementById('conditionsContainer');
@@ -405,17 +435,41 @@
         card.appendChild(dimensionFields);
 
         var areaBox = el('div', 'area-box');
-        areaBox.appendChild(el('span', '', '開口部面積'));
-        var areaValue = el('strong', '', '—');
-        areaValue.dataset.fanArea = String(index);
-        areaBox.appendChild(areaValue);
+        areaBox.appendChild(el('span', '', '開口部面積' + (fan.shape === 'rectangle' ? ' (㎡)' : '')));
+        if (fan.shape === 'rectangle') {
+          var areaInput = document.createElement('input');
+          areaInput.type = 'text';
+          areaInput.inputMode = 'decimal';
+          areaInput.autocomplete = 'off';
+          areaInput.autocapitalize = 'off';
+          areaInput.spellcheck = false;
+          areaInput.placeholder = 'タテ・ヨコから自動表示 / 直接入力可';
+          areaInput.value = fan.areaDirect || '';
+          areaInput.setAttribute('aria-label', (index + 1) + '台目 開口部面積 ㎡');
+          areaInput.dataset.fanIndex = String(index);
+          areaInput.dataset.fanField = 'areaDirect';
+          areaInput.dataset.fanAreaEntry = String(index);
+          areaBox.appendChild(areaInput);
+        } else {
+          var areaValue = el('strong', '', '—');
+          areaValue.dataset.fanArea = String(index);
+          areaBox.appendChild(areaValue);
+        }
         card.appendChild(areaBox);
+        if (fan.shape === 'rectangle') {
+          card.appendChild(el('p', 'area-edit-note', 'タテ・ヨコを入力すると自動表示されます。面積欄へ直接入力することもできます。'));
+          var autoAreaButton = el('button', 'area-auto-button', 'タテ・ヨコから再計算');
+          autoAreaButton.type = 'button';
+          autoAreaButton.dataset.action = 'auto-area';
+          autoAreaButton.dataset.index = String(index);
+          card.appendChild(autoAreaButton);
+        }
 
         var speedHead = el('div', 'sub-head');
         speedHead.appendChild(el('span', 'section-number', '3'));
-        speedHead.appendChild(document.createTextNode('実測風速 (m/s)・5点'));
+        speedHead.appendChild(document.createTextNode('実測風速 (m/s)・最大5点'));
         card.appendChild(speedHead);
-        card.appendChild(el('p', 'hint', '各測定点の風速を入力します。5点の平均から換気風量を計算します。'));
+        card.appendChild(el('p', 'hint', '1点以上入力してください。入力した点の平均から換気風量を計算します（5点未満でも表示できます）。'));
 
         var speedList = el('div', 'speed-list');
         fan.speeds.forEach(function (speed, speedIndex) {
@@ -439,7 +493,7 @@
         card.appendChild(speedList);
 
         var averageBox = el('div', 'average-box');
-        averageBox.appendChild(el('span', '', '5点の平均風速'));
+        averageBox.appendChild(el('span', '', '入力した点の平均風速'));
         var averageValue = el('strong', '', '—');
         averageValue.dataset.fanAverage = String(index);
         averageBox.appendChild(averageValue);
@@ -450,7 +504,12 @@
         measureButton.dataset.action = 'measure-flow';
         measureButton.dataset.index = String(index);
         card.appendChild(measureButton);
-        var note = el('p', 'fan-note', '形状・寸法・実測風速5点を入力すると表示できます。');
+        var addFanButton = el('button', 'secondary measure-button add-fan-inline', '換気扇を追加');
+        addFanButton.type = 'button';
+        addFanButton.dataset.action = 'add-fan';
+        addFanButton.dataset.index = String(index);
+        card.appendChild(addFanButton);
+        var note = el('p', 'fan-note', '形状・開口部面積・実測風速を1点以上入力すると表示できます。');
         note.dataset.fanNote = String(index);
         card.appendChild(note);
         return card;
@@ -459,6 +518,7 @@
         var container = document.getElementById('fansContainer');
         container.textContent = '';
         appState.fans.forEach(function (fan, index) {
+          syncRectangleArea(index);
           container.appendChild(buildFanCard(fan, index));
         });
         refreshFanCards();
@@ -483,22 +543,26 @@
           if (!card) return;
           var metrics = calculateFan(fan);
           var areaNode = card.querySelector('[data-fan-area]');
+          var areaInput = card.querySelector('[data-fan-area-entry]');
           var averageNode = card.querySelector('[data-fan-average]');
           var button = card.querySelector('[data-action="measure-flow"]');
           var note = card.querySelector('[data-fan-note]');
           if (!button || !note) return;
           if (areaNode) appendUnitValue(areaNode, metrics.area, 4, '㎡');
+          if (areaInput && fan.areaMode !== 'manual' && areaInput.value !== fan.areaDirect) areaInput.value = fan.areaDirect;
           if (averageNode) appendUnitValue(averageNode, metrics.average, 2, 'm/s');
           var conditionsReady = calculateConditions().ready;
           button.disabled = !metrics.ready || !conditionsReady;
           if (!conditionsReady) {
             note.textContent = '先に、すべての換気条件の発熱量を入力してください。';
           } else if (!metrics.ready) {
-            note.textContent = '形状・寸法・実測風速5点を入力すると表示できます。';
+            if (metrics.speedError) note.textContent = '実測風速は0以上の数値で入力してください。';
+            else if (metrics.speedCount === 0) note.textContent = '実測風速を1点以上入力すると表示できます。';
+            else note.textContent = '形状と開口部面積を入力すると表示できます。';
           } else if (fan.measuredFlow !== null && fan.measuredFlow !== undefined) {
             note.textContent = '測定済み：' + formatted(fan.measuredFlow, 2) + ' m³/h';
           } else {
-            note.textContent = '入力がそろいました。「測定風量を表示」を押してください。';
+            note.textContent = metrics.speedCount + '点の平均で計算します。「測定風量を表示」を押してください。';
           }
         });
       }
@@ -550,6 +614,8 @@
               diameter: String(fan.diameter == null ? '' : fan.diameter),
               height: String(fan.height == null ? '' : fan.height),
               width: String(fan.width == null ? '' : fan.width),
+              areaDirect: String(fan.areaDirect == null ? '' : fan.areaDirect),
+              areaMode: fan.areaMode === 'manual' ? 'manual' : 'auto',
               speeds: speeds,
               measuredFlow: flow
             };
@@ -698,7 +764,11 @@
         var fan = appState.fans[Number(input.dataset.fanIndex)];
         if (!fan) return;
         if (input.dataset.speedIndex !== undefined) fan.speeds[Number(input.dataset.speedIndex)] = input.value;
-        else if (input.dataset.fanField) fan[input.dataset.fanField] = input.value;
+        else if (input.dataset.fanField) {
+          fan[input.dataset.fanField] = input.value;
+          if (input.dataset.fanField === 'areaDirect') fan.areaMode = 'manual';
+          if (input.dataset.fanField === 'height' || input.dataset.fanField === 'width') syncRectangleArea(Number(input.dataset.fanIndex));
+        }
         fan.measuredFlow = null;
         refreshAll();
         saveDraft();
@@ -715,6 +785,16 @@
           renderFans();
           refreshAll();
           saveDraft();
+        } else if (button.dataset.action === 'auto-area') {
+          var rectangleFan = appState.fans[index];
+          if (!rectangleFan) return;
+          rectangleFan.areaMode = 'auto';
+          syncRectangleArea(index);
+          rectangleFan.measuredFlow = null;
+          refreshAll();
+          saveDraft();
+        } else if (button.dataset.action === 'add-fan') {
+          addFan();
         } else if (button.dataset.action === 'measure-flow') {
           showFanResult(index);
         } else if (button.dataset.action === 'remove-fan') {
