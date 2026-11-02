@@ -49,6 +49,7 @@
     .top-note { margin: 9px 0 0; color: #d6e9e6; font-size: 14px; }
     .local-state { display: inline-flex; gap: 7px; align-items: center; margin-top: 12px; padding: 6px 11px; color: #eafffa; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); border-radius: 999px; font-size: 13px; }
     .local-dot { width: 8px; height: 8px; background: #9de0c5; border-radius: 50%; }
+    .top-reset-button { display: block; width: 100%; max-width: 260px; min-height: 48px; margin-top: 12px; padding: 10px 14px; color: var(--teal-dark); background: #fff; border: 0; border-radius: 10px; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
     .card { margin: 0 0 15px; padding: 18px; background: var(--paper); border: 1px solid var(--line); border-radius: 15px; box-shadow: var(--shadow); }
     .section-head { display: flex; align-items: center; gap: 10px; margin: 0 0 15px; }
     .section-number { display: grid; width: 30px; height: 30px; place-items: center; flex: 0 0 30px; color: #fff; background: var(--teal); border-radius: 9px; font-size: 15px; font-weight: 800; }
@@ -156,7 +157,21 @@
     .popup-button { min-height: 54px; padding: 9px; font-size: 15px; }
     .popup-ok { color: #34565b; background: #eaf0ef; }
     .popup-add { grid-column: 1 / -1; color: #fff; background: var(--teal); }
+    .popup-save { grid-column: 1 / -1; color: var(--teal-dark); background: #e6f2f0; }
+    .popup-save-status { margin: 10px 0 0; color: var(--green); font-size: 14px; font-weight: 700; }
+    .popup-save-status:empty { display: none; }
     .popup-reset { color: #9b1722; background: #ffe7e8; }
+    .saved-record-card { margin-top: 12px; padding: 14px; background: #f7faf9; border: 1px solid #e1eae8; border-radius: 12px; }
+    .saved-record-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .saved-record-head h3 { margin: 0; font-size: 15px; }
+    .saved-record-delete { min-height: 40px; padding: 7px 10px; color: #9b2730; background: #fff0f0; border: 0; border-radius: 9px; font: inherit; font-size: 13px; font-weight: 800; }
+    .saved-record-row { display: grid; grid-template-columns: minmax(112px, .75fr) minmax(0, 1.25fr); gap: 10px; padding: 9px 0; border-top: 1px solid #e1eae8; }
+    .saved-record-label { color: #587075; font-size: 14px; font-weight: 700; }
+    .saved-record-value { min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+    .saved-record-lines > div + div { margin-top: 5px; }
+    .saved-record-judgement { font-weight: 900; color: var(--green); }
+    .saved-record-judgement.low { color: var(--red); }
+    .saved-record-note { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
     @media (max-width: 390px) {
       body { padding-right: 10px; padding-left: 10px; }
       .topbar { margin-right: -10px; margin-left: -10px; padding-right: 15px; padding-left: 15px; }
@@ -174,6 +189,7 @@
       <h1>換気風量測定</h1>
       <p class="top-note">換気条件と換気扇ごとの測定値を入力します。</p>
       <span class="local-state"><span class="local-dot"></span>入力内容はこの端末に保存</span>
+      <button id="topResetButton" class="top-reset-button" type="button">入力内容をリセット</button>
     </div>
   </header>
 
@@ -202,7 +218,13 @@
       </div>
       <div id="summaryStatus" class="summary-status" role="status"></div>
       <p class="formula-note">必要有効換気量 ＝ 各発熱量 × 0.93 × 換気型式の合計 ／ 各換気扇の測定風量 ＝ 3,600 × 開口面積 × 入力した点の平均風速</p>
-      <button id="clearButton" class="clear-button" type="button">全データをリセット</button>
+      <button id="clearButton" class="clear-button" type="button">入力内容をリセット</button>
+    </section>
+    <section id="savedRecordsSection" class="card" hidden>
+      <div class="section-head"><span class="section-number">5</span><h2 id="savedRecordsTitle">一時保存データ</h2></div>
+      <p class="saved-record-note">この端末のブラウザに保存されています。画面下からいつでも見返せます。</p>
+      <div id="savedRecordsList"></div>
+      <button id="clearSavedRecords" class="clear-button" type="button">一時保存データをすべて削除</button>
     </section>
     <p class="footer-note">測定値はクラウドへ送信せず、この端末のブラウザに一時保存します。</p>
   </main>
@@ -219,7 +241,9 @@
         <button id="popupOk" class="popup-button popup-ok" type="button">OK</button>
         <button id="popupReset" class="popup-button popup-reset" type="button">リセット</button>
         <button id="popupAddFan" class="popup-button popup-add" type="button">換気扇を追加</button>
+        <button id="popupSaveRecord" class="popup-button popup-save" type="button">データ一時保存</button>
       </div>
+      <p id="popupSaveStatus" class="popup-save-status" role="status"></p>
     </section>
   </div>
 
@@ -227,14 +251,16 @@
     (function () {
       var storageKey = 'ventFlowMeasurementDraftV3';
       var oldStorageKey = 'ventFlowMeasurementDraftV2';
+      var savedRecordsKey = 'ventFlowMeasurementSavedRecordsV1';
       var validTypes = ['40', '30', '20', '2'];
       var appState = createBlankState();
+      var savedRecords = [];
 
       function createBlankFan() {
         return { shape: '', diameter: '', height: '', width: '', areaDirect: '', areaMode: 'auto', speeds: ['', '', '', '', ''], measuredFlow: null };
       }
       function createBlankState() {
-        return { conditions: [{ heat: '', type: '30' }], fans: [createBlankFan()] };
+        return { conditions: [{ heat: '', type: '40' }], fans: [createBlankFan()] };
       }
       function el(tag, className, text) {
         var node = document.createElement(tag);
@@ -285,11 +311,11 @@
         var select = document.createElement('select');
         select.dataset.conditionIndex = String(index);
         select.dataset.conditionField = 'type';
-        [['40', '40'], ['30', '30（標準）'], ['20', '20'], ['2', '2']].forEach(function (entry) {
+        [['40', '40（標準）'], ['30', '30'], ['20', '20'], ['2', '2']].forEach(function (entry) {
           var option = document.createElement('option');
           option.value = entry[0];
           option.textContent = entry[1];
-          if (entry[0] === String(value || '30')) option.selected = true;
+          if (entry[0] === String(value || '40')) option.selected = true;
           select.appendChild(option);
         });
         field.appendChild(label);
@@ -596,12 +622,122 @@
       function saveDraft() {
         try { localStorage.setItem(storageKey, JSON.stringify(appState)); } catch (error) {}
       }
+      function persistSavedRecords() {
+        try {
+          localStorage.setItem(savedRecordsKey, JSON.stringify(savedRecords));
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
+      function loadSavedRecords() {
+        try {
+          var records = JSON.parse(localStorage.getItem(savedRecordsKey) || '[]');
+          return Array.isArray(records) ? records.filter(function (record) {
+            return record && typeof record === 'object' && Array.isArray(record.fans);
+          }) : [];
+        } catch (error) {
+          return [];
+        }
+      }
+      function saveCurrentRecord() {
+        var conditions = calculateConditions();
+        if (!conditions.ready) return false;
+        var fans = appState.fans.map(function (fan, index) {
+          if (typeof fan.measuredFlow !== 'number' || !isFinite(fan.measuredFlow)) return null;
+          var metrics = calculateFan(fan);
+          if (!metrics.ready) return null;
+          return {
+            number: index + 1,
+            shape: fan.shape,
+            diameter: String(fan.diameter || ''),
+            height: String(fan.height || ''),
+            width: String(fan.width || ''),
+            area: metrics.area,
+            areaMode: fan.areaMode === 'manual' ? 'manual' : 'auto',
+            average: metrics.average,
+            speedCount: metrics.speedCount,
+            flow: fan.measuredFlow
+          };
+        }).filter(function (fan) { return fan !== null; });
+        if (!fans.length) return false;
+        var measuredTotal = fans.reduce(function (sum, fan) { return sum + fan.flow; }, 0);
+        savedRecords.unshift({
+          id: String(Date.now()) + '-' + Math.random().toString(36).slice(2, 8),
+          savedAt: new Date().toISOString(),
+          requiredFlow: conditions.total,
+          measuredFlow: measuredTotal,
+          belowRequired: measuredTotal < conditions.total,
+          fans: fans
+        });
+        if (!persistSavedRecords()) {
+          savedRecords.shift();
+          return false;
+        }
+        renderSavedRecords();
+        return true;
+      }
+      function appendSavedRecordRow(container, label, value, valueClass) {
+        var row = el('div', 'saved-record-row');
+        row.appendChild(el('div', 'saved-record-label', label));
+        var valueNode = el('div', 'saved-record-value' + (valueClass ? ' ' + valueClass : ''));
+        if (Array.isArray(value)) {
+          valueNode.classList.add('saved-record-lines');
+          value.forEach(function (line) { valueNode.appendChild(el('div', '', line)); });
+        } else {
+          valueNode.textContent = value;
+        }
+        row.appendChild(valueNode);
+        container.appendChild(row);
+      }
+      function renderSavedRecords() {
+        var section = document.getElementById('savedRecordsSection');
+        var list = document.getElementById('savedRecordsList');
+        var title = document.getElementById('savedRecordsTitle');
+        list.textContent = '';
+        section.hidden = savedRecords.length === 0;
+        title.textContent = '一時保存データ（' + savedRecords.length + '件）';
+        savedRecords.forEach(function (record, index) {
+          var article = el('article', 'saved-record-card');
+          var head = el('div', 'saved-record-head');
+          var savedDate = new Date(record.savedAt);
+          head.appendChild(el('h3', '', '保存日時：' + (isNaN(savedDate.getTime()) ? '不明' : savedDate.toLocaleString('ja-JP'))));
+          var deleteButton = el('button', 'saved-record-delete', 'この記録を削除');
+          deleteButton.type = 'button';
+          deleteButton.dataset.action = 'delete-saved-record';
+          deleteButton.dataset.recordIndex = String(index);
+          head.appendChild(deleteButton);
+          article.appendChild(head);
+
+          var openingLines = record.fans.map(function (fan) {
+            var description = fan.shape === 'circle'
+              ? '円形・直径 ' + (fan.diameter || '—') + ' cm'
+              : '四角形・タテ ' + (fan.height || '—') + ' cm × ヨコ ' + (fan.width || '—') + ' cm';
+            description += '・面積 ' + formatted(fan.area, 4) + ' ㎡';
+            if (fan.areaMode === 'manual') description += '（直接入力）';
+            return fan.number + '台目：' + description;
+          });
+          var averageLines = record.fans.map(function (fan) {
+            return fan.number + '台目：' + formatted(fan.average, 2) + ' m/s（' + fan.speedCount + '点）';
+          });
+          var flowLines = record.fans.map(function (fan) {
+            return fan.number + '台目：' + formatted(fan.flow, 2) + ' m³/h';
+          });
+          flowLines.push('合計：' + formatted(record.measuredFlow, 2) + ' m³/h');
+          appendSavedRecordRow(article, '必要有効換気量', formatted(record.requiredFlow, 2) + ' m³/h');
+          appendSavedRecordRow(article, '開口部', openingLines);
+          appendSavedRecordRow(article, '平均風速', averageLines);
+          appendSavedRecordRow(article, '実測風量', flowLines);
+          appendSavedRecordRow(article, '判定', record.belowRequired ? '必要有効換気量を下回る' : '必要有効換気量以上', 'saved-record-judgement' + (record.belowRequired ? ' low' : ''));
+          list.appendChild(article);
+        });
+      }
       function normalizeState(saved) {
         var normalized = createBlankState();
         if (Array.isArray(saved.conditions) && saved.conditions.length) {
           normalized.conditions = saved.conditions.map(function (condition) {
-            var type = String(condition.type || '30');
-            return { heat: String(condition.heat == null ? '' : condition.heat), type: validTypes.indexOf(type) >= 0 ? type : '30' };
+            var type = String(condition.type || '40');
+            return { heat: String(condition.heat == null ? '' : condition.heat), type: validTypes.indexOf(type) >= 0 ? type : '40' };
           });
         }
         if (Array.isArray(saved.fans) && saved.fans.length) {
@@ -632,7 +768,7 @@
           }
           var old = JSON.parse(localStorage.getItem(oldStorageKey) || 'null');
           if (!old) return;
-          appState.conditions = [{ heat: String(old.heat || ''), type: validTypes.indexOf(String(old.type || '30')) >= 0 ? String(old.type || '30') : '30' }];
+          appState.conditions = [{ heat: String(old.heat || ''), type: validTypes.indexOf(String(old.type || '40')) >= 0 ? String(old.type || '40') : '40' }];
           if (old.width || old.height || old.speeds) {
             var fan = createBlankFan();
             if (old.width || old.height) {
@@ -665,6 +801,7 @@
         openPopup();
       }
       function renderPopup() {
+        document.getElementById('popupSaveStatus').textContent = '';
         var list = document.getElementById('popupFanList');
         list.textContent = '';
         var measuredFans = appState.fans.map(function (fan, index) {
@@ -708,7 +845,7 @@
         if (newCard) newCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
       function resetAll(skipConfirmation) {
-        if (!skipConfirmation && !window.confirm('すべての換気条件と測定値を消去しますか？')) return;
+        if (!skipConfirmation && !window.confirm('入力中の換気条件と測定値をリセットします。一時保存した記録は残ります。よろしいですか？')) return;
         appState = createBlankState();
         try {
           localStorage.removeItem(storageKey);
@@ -745,13 +882,13 @@
         var button = event.target.closest('button[data-action="remove-condition"]');
         if (!button) return;
         appState.conditions.splice(Number(button.dataset.index), 1);
-        if (!appState.conditions.length) appState.conditions.push({ heat: '', type: '30' });
+        if (!appState.conditions.length) appState.conditions.push({ heat: '', type: '40' });
         renderConditions();
         refreshAll();
         saveDraft();
       });
       document.getElementById('addConditionButton').addEventListener('click', function () {
-        appState.conditions.push({ heat: '', type: '30' });
+        appState.conditions.push({ heat: '', type: '40' });
         renderConditions();
         refreshAll();
         saveDraft();
@@ -808,8 +945,28 @@
       });
       document.getElementById('popupOk').addEventListener('click', closePopup);
       document.getElementById('popupAddFan').addEventListener('click', addFan);
+      document.getElementById('popupSaveRecord').addEventListener('click', function () {
+        var status = document.getElementById('popupSaveStatus');
+        status.textContent = saveCurrentRecord()
+          ? '一時保存しました。画面下の「一時保存データ」から見返せます。'
+          : '保存できませんでした。測定結果を確認して、もう一度お試しください。';
+      });
       document.getElementById('popupReset').addEventListener('click', function () { resetAll(true); });
       document.getElementById('clearButton').addEventListener('click', function () { resetAll(false); });
+      document.getElementById('topResetButton').addEventListener('click', function () { resetAll(false); });
+      document.getElementById('savedRecordsList').addEventListener('click', function (event) {
+        var button = event.target.closest('button[data-action="delete-saved-record"]');
+        if (!button) return;
+        savedRecords.splice(Number(button.dataset.recordIndex), 1);
+        persistSavedRecords();
+        renderSavedRecords();
+      });
+      document.getElementById('clearSavedRecords').addEventListener('click', function () {
+        if (!window.confirm('一時保存した測定データをすべて削除しますか？')) return;
+        savedRecords = [];
+        persistSavedRecords();
+        renderSavedRecords();
+      });
       document.getElementById('resultPopup').addEventListener('click', function (event) {
         if (event.target === document.getElementById('resultPopup')) closePopup();
       });
@@ -818,6 +975,8 @@
       });
 
       restoreDraft();
+      savedRecords = loadSavedRecords();
+      renderSavedRecords();
       renderConditions();
       renderFans();
       refreshAll();
